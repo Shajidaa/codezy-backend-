@@ -15,13 +15,15 @@ let db;
 
 // Connect once and reuse the connection
 async function initDb() {
-  try {
-    await client.connect();
-    db = client.db("codezy_database");
-    // console.log("✔ Native MongoDB Connected");
-  } catch (e) {
-    console.error("Connection error", e);
-  }
+  app.use(async (req, res, next) => {
+    try {
+      await connectToDatabase();
+      next();
+    } catch (error) {
+      console.error("Database connection failed:", error);
+      res.status(500).json({ error: "External database connection failed" });
+    }
+  });
 }
 
 // Registration Route
@@ -83,5 +85,5 @@ app.post("/api/auth/login", async (req, res) => {
 // initDb().then(() => {
 //   app.listen(5000, () => console.log("Backend running on port 5000"));
 // });
-// 3. CRITICAL: Export the app for Vercel
+
 module.exports = app;
