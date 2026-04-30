@@ -80,6 +80,8 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-initDb().then(() => {
-  // app.listen(5000, () => console.log("Backend running on port 5000"));
-});
+// initDb().then(() => {
+//   app.listen(5000, () => console.log("Backend running on port 5000"));
+// });
+// 3. CRITICAL: Export the app for Vercel
+module.exports = app;
