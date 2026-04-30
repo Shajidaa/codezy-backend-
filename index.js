@@ -18,7 +18,7 @@ async function initDb() {
   try {
     await client.connect();
     db = client.db("codezy_database");
-    console.log("✔ Native MongoDB Connected");
+    // console.log("✔ Native MongoDB Connected");
   } catch (e) {
     console.error("Connection error", e);
   }
@@ -52,17 +52,34 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 // Login Route (Required for NextAuth Credentials)
-app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  const user = await db.collection("users").findOne({ email });
 
-  if (user && (await bcrypt.compare(password, user.password))) {
-    const { password: _, ...userWithoutPass } = user;
-    return res.json(userWithoutPass);
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!db) return res.status(500).json({ error: "Database not ready" });
+
+    const users = db.collection("users");
+
+    const user = await users.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(401).json({ error: "Invalid password" });
+    }
+
+    const { password: _, ...userProfile } = user;
+
+    console.log(`✔ User logged in: ${userProfile.email}`);
+    res.status(200).json(userProfile);
+  } catch (err) {
+    console.error("Login Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
-  res.status(401).json({ error: "Invalid credentials" });
 });
 
 initDb().then(() => {
-  app.listen(5000, () => console.log("Backend running on port 5000"));
+  // app.listen(5000, () => console.log("Backend running on port 5000"));
 });
