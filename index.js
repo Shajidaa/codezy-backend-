@@ -6,7 +6,14 @@ require("dotenv").config();
 const port = process.env.PORT || 5000;
 const app = express();
 app.use(express.json());
-app.use(cors());
+const corsOptions = {
+  origin: ["http://localhost:3000"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+// app.use(cors());
 
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
