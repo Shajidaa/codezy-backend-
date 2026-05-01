@@ -9,7 +9,7 @@ const app = express();
 
 // CORS Configuration
 const corsOptions = {
-  origin: ["http://localhost:3000"],
+  origin: ["http://localhost:3000", "https://codezy-frontend.vercel.app"],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   credentials: true,
   optionsSuccessStatus: 200,
