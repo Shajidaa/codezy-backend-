@@ -90,6 +90,54 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+// POST: Lead Collection for Free Demo
+
+app.post("/api/leads/demo", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const leads = database.collection("leads");
+
+    // Destructuring more specific student info
+    const { parentName, phoneNumber, childAge, interest, experienceLevel } =
+      req.body;
+
+    if (!parentName || !phoneNumber || !childAge) {
+      return res.status(400).json({ error: "Crucial information missing" });
+    }
+
+    const newLead = {
+      parentName,
+      phoneNumber,
+      childAge: parseInt(childAge),
+      interest: interest || "General Coding",
+      experienceLevel: experienceLevel || "Beginner",
+      source: "Landing Page Demo Form",
+      status: "new_lead",
+      followUpDone: false,
+      createdAt: new Date(),
+    };
+
+    const result = await leads.insertOne(newLead);
+    res.status(201).json({ message: "Lead captured", id: result.insertedId });
+  } catch (err) {
+    res.status(500).json({ error: "System error during lead capture" });
+  }
+});
+// GET: Fetch leads (Secure this for Admin only later)
+app.get("/api/leads", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const leads = await database
+      .collection("leads")
+      .find()
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.status(200).json(leads);
+  } catch (err) {
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // Start Server for local development
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
