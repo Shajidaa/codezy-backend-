@@ -97,30 +97,53 @@ app.post("/api/leads/demo", async (req, res) => {
     const database = await connectDB();
     const leads = database.collection("leads");
 
-    // Destructuring more specific student info
-    const { parentName, phoneNumber, childAge, interest, experienceLevel } =
-      req.body;
+    const {
+      parentName,
+      email,
+      phoneNumber,
+      childAge,
+      schoolName,
+      sector,
+      experienceLevel,
+      bookingDate,
+      bookingTime,
+    } = req.body;
 
-    if (!parentName || !phoneNumber || !childAge) {
-      return res.status(400).json({ error: "Crucial information missing" });
+    if (!sector || !experienceLevel) {
+      return res
+        .status(400)
+        .json({ error: "Please select course sector and experience level." });
     }
 
     const newLead = {
-      parentName,
-      phoneNumber,
-      childAge: parseInt(childAge),
-      interest: interest || "General Coding",
-      experienceLevel: experienceLevel || "Beginner",
-      source: "Landing Page Demo Form",
-      status: "new_lead",
-      followUpDone: false,
-      createdAt: new Date(),
+      parentInfo: {
+        name: parentName,
+        email: email.toLowerCase(),
+        whatsapp: phoneNumber,
+      },
+      studentInfo: {
+        age: parseInt(childAge),
+        school: schoolName,
+        experience: experienceLevel,
+      },
+      course: {
+        interestedSector: sector,
+      },
+      appointment: {
+        date: new Date(bookingDate),
+        time: bookingTime,
+      },
+      meta: {
+        status: "new_lead",
+        createdAt: new Date(),
+      },
     };
 
     const result = await leads.insertOne(newLead);
-    res.status(201).json({ message: "Lead captured", id: result.insertedId });
+    res.status(201).json({ success: true, bookingId: result.insertedId });
   } catch (err) {
-    res.status(500).json({ error: "System error during lead capture" });
+    console.error("Error saving lead:", err);
+    res.status(500).json({ error: "Server Error" });
   }
 });
 // GET: Fetch leads (Secure this for Admin only later)
