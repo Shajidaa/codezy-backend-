@@ -161,6 +161,30 @@ app.get("/api/leads", async (req, res) => {
   }
 });
 
+app.get("/courses", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { category } = req.query;
+
+    let query = {};
+
+    if (category && category !== "all") {
+      query.category = category;
+    }
+
+    const courses = await database
+      .collection("courses")
+      .find(query)
+      .sort({ id: 1 })
+      .toArray();
+
+    res.status(200).json(courses);
+  } catch (err) {
+    console.error("Error fetching courses:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // Start Server for local development
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
