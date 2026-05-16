@@ -1,5 +1,5 @@
 const express = require("express");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const bcrypt = require("bcryptjs");
 const cors = require("cors");
 require("dotenv").config();
@@ -184,7 +184,33 @@ app.get("/courses", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+app.get("/courses/:id", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { id } = req.params; // Changed from _id to id to match the route parameter placeholder ':id'
 
+    let query = {};
+
+    // Check if the id string looks like a standard 24-character hex MongoDB ObjectId
+    if (ObjectId.isValid(id)) {
+      query = { _id: new ObjectId(id) };
+    } else {
+      // Fallback fallback option if your course seed data uses manual numeric IDs (e.g., id: 1)
+      query = { id: parseInt(id) || id };
+    }
+
+    const course = await database.collection("courses").findOne(query);
+
+    if (!course) {
+      return res.status(404).json({ error: "Course not found" });
+    }
+
+    res.status(200).json(course);
+  } catch (err) {
+    console.error("Error fetching course:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 // Start Server for local development
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
