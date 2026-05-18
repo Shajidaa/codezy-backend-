@@ -90,8 +90,88 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// POST: Lead Collection for Free Demo
+// ==========================================
+// NEW POST: Enrollment Submission Route
+// ==========================================
+app.post("/api/enrollments", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const enrollments = database.collection("enrollments");
 
+    const {
+      fullName,
+      email,
+      phone,
+      whatsapp,
+      paymentMethod,
+      lastThreeDigits,
+      transactionId,
+      planId, // আপনার ফ্রন্টএন্ড থেকে planData.id রিসিভ করার জন্য
+    } = req.body;
+
+    // প্রাথমিক ভ্যালিডেশন
+    if (!fullName || !email || !phone || !whatsapp || !paymentMethod) {
+      return res.status(400).json({ error: "প্রয়োজনীয় সব তথ্য প্রদান করুন।" });
+    }
+
+    // বিকাশ বা নগদের ক্ষেত্রে লাস্ট ৩ ডিজিট এবং ট্রানজেকশন আইডি বাধ্যতামূলক
+    if (
+      (paymentMethod === "bkash" || paymentMethod === "nagad") &&
+      (!lastThreeDigits || !transactionId)
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "বিকাশ/নগদ পেমেন্টের ক্ষেত্রে লাস্ট ৩ ডিজিট এবং ট্রানজেকশন আইডি দিতে হবে।",
+        });
+    }
+
+    // ডাটাবেজের জন্য অবজেক্ট তৈরি
+    const newEnrollment = {
+      studentInfo: {
+        name: fullName,
+        email: email.toLowerCase().trim(),
+        contact: phone,
+        whatsapp: whatsapp,
+      },
+      paymentInfo: {
+        method: paymentMethod, // 'bkash' | 'nagad' | 'card'
+        lastThreeDigits: paymentMethod !== "card" ? lastThreeDigits : null,
+        transactionId:
+          paymentMethod !== "card"
+            ? transactionId.toUpperCase().trim()
+            : "CARD_GATEWAY",
+      },
+      coursePlanId: planId || null,
+      status: "pending", // যেহেতু এটি ম্যানুয়াল ভেরিফিকেশন হবে
+      createdAt: new Date(),
+    };
+
+    const result = await enrollments.insertOne(newEnrollment);
+    res.status(201).json({ success: true, enrollmentId: result.insertedId });
+  } catch (err) {
+    console.error("Enrollment Saving Error:", err);
+    res.status(500).json({ error: "সার্ভারে সমস্যা হয়েছে, আবার চেষ্টা করুন।" });
+  }
+});
+
+// GET: Fetch all enrollments (Admin Panel এর জন্য দরকারী হতে পারে)
+app.get("/api/enrollments", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const allEnrollments = await database
+      .collection("enrollments")
+      .find()
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.status(200).json(allEnrollments);
+  } catch (err) {
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST: Lead Collection for Free Demo
 app.post("/api/leads/demo", async (req, res) => {
   try {
     const database = await connectDB();
@@ -146,7 +226,8 @@ app.post("/api/leads/demo", async (req, res) => {
     res.status(500).json({ error: "Server Error" });
   }
 });
-// GET: Fetch leads (Secure this for Admin only later)
+
+// GET: Fetch leads
 app.get("/api/leads", async (req, res) => {
   try {
     const database = await connectDB();
@@ -184,18 +265,17 @@ app.get("/courses", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
 app.get("/courses/:id", async (req, res) => {
   try {
     const database = await connectDB();
-    const { id } = req.params; // Changed from _id to id to match the route parameter placeholder ':id'
+    const { id } = req.params;
 
     let query = {};
 
-    // Check if the id string looks like a standard 24-character hex MongoDB ObjectId
     if (ObjectId.isValid(id)) {
       query = { _id: new ObjectId(id) };
     } else {
-      // Fallback fallback option if your course seed data uses manual numeric IDs (e.g., id: 1)
       query = { id: parseInt(id) || id };
     }
 
@@ -211,6 +291,7 @@ app.get("/courses/:id", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
 // Start Server for local development
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
