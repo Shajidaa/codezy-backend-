@@ -119,15 +119,12 @@ app.post("/api/enrollments", async (req, res) => {
       (paymentMethod === "bkash" || paymentMethod === "nagad") &&
       (!lastThreeDigits || !transactionId)
     ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "বিকাশ/নগদ পেমেন্টের ক্ষেত্রে লাস্ট ৩ ডিজিট এবং ট্রানজেকশন আইডি দিতে হবে।",
-        });
+      return res.status(400).json({
+        error:
+          "বিকাশ/নগদ পেমেন্টের ক্ষেত্রে লাস্ট ৩ ডিজিট এবং ট্রানজেকশন আইডি দিতে হবে।",
+      });
     }
 
-    // ডাটাবেজের জন্য অবজেক্ট তৈরি
     const newEnrollment = {
       studentInfo: {
         name: fullName,
@@ -144,7 +141,7 @@ app.post("/api/enrollments", async (req, res) => {
             : "CARD_GATEWAY",
       },
       coursePlanId: planId || null,
-      status: "pending", // যেহেতু এটি ম্যানুয়াল ভেরিফিকেশন হবে
+      status: "pending",
       createdAt: new Date(),
     };
 
@@ -256,6 +253,30 @@ app.get("/courses", async (req, res) => {
     const courses = await database
       .collection("courses")
       .find(query)
+      .sort({ id: 1 })
+      .toArray();
+
+    res.status(200).json(courses);
+  } catch (err) {
+    console.error("Error fetching courses:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+app.get("/course", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { category } = req.query;
+
+    let query = {};
+
+    if (category && category !== "all") {
+      query.category = category;
+    }
+
+    const courses = await database
+      .collection("courses")
+      .find(query)
+      .limit(6)
       .sort({ id: 1 })
       .toArray();
 
