@@ -153,7 +153,7 @@ app.post("/api/enrollments", async (req, res) => {
   }
 });
 
-// GET: Fetch all enrollments (Admin Panel এর জন্য দরকারী হতে পারে)
+// GET: Fetch all enrollments
 app.get("/api/enrollments", async (req, res) => {
   try {
     const database = await connectDB();
@@ -309,6 +309,23 @@ app.get("/courses/:id", async (req, res) => {
     res.status(200).json(course);
   } catch (err) {
     console.error("Error fetching course:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET: Fetch all bootcamp levels
+app.get("/api/bootcamp-levels", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const levels = await database
+      .collection("bootcamp_levels")
+      .find()
+      .sort({ id: 1 })
+      .toArray();
+
+    res.status(200).json(levels);
+  } catch (err) {
+    console.error("Error fetching bootcamp levels:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
