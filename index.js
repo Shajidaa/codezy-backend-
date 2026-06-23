@@ -89,10 +89,173 @@ app.post("/api/auth/login", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+//get teachers
+app.get("/users/tutors", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const users = await database
+      .collection("users")
+      .find({ role: "teacher" })
 
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.status(200).json(users);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+app.get("/users/email/:email", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const user = await database
+      .collection("users")
+      .findOne({ email: req.params.email });
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.status(200).json(user);
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// app.get("/users/profile/:email", async (req, res) => {
+//   try {
+//     const { profile } = req.body;
+//     const { email } = req.params; // Get email from URL params as per your route path
+
+//     if (!email) return res.status(400).json({ error: "Email is required" });
+
+//     const database = await connectDB();
+//     const usersCollection = database.collection("users");
+
+//     // 1. Find the existing user
+//     const user = await usersCollection.findOne({ email });
+//     if (!user) return res.status(404).json({ error: "User not found" });
+
+//     // 2. Safely merge old profile parameters with new incoming properties
+//     const oldProfile = user.profile || {};
+//     const updatedProfile = {
+//       ...profile,
+//       education: Array.isArray(profile?.education) ? profile.education : [],
+//       subjects: Array.isArray(profile?.subjects) ? profile.subjects : [],
+//       experience: Array.isArray(profile?.experience) ? profile.experience : [],
+//       verified: oldProfile.verified || false,
+//       rating: oldProfile.rating || 0,
+//       totalReviews: oldProfile.totalReviews || 0,
+//     };
+
+//     // 3. Update the document in MongoDB and return the updated fields
+//     const result = await usersCollection.findOneAndUpdate(
+//       { email },
+//       {
+//         $set: {
+//           profile: updatedProfile,
+//           updated_at: new Date(), // Equates to NOW() in PostgreSQL
+//         },
+//       },
+//       { returnDocument: "after" }, // Ensures MongoDB returns the updated version of the object
+//     );
+
+//     res.status(200).json({
+//       message: "Profile updated successfully",
+//       profile: result.profile || result.value?.profile || updatedProfile, // Handles different MongoDB driver variations safely
+//     });
+//   } catch (err) {
+//     console.error("Error updating profile:", err);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// });
+// app.put("/users/profile",async(req,res)=>{
+
+// })
 // ==========================================
 // NEW POST: Enrollment Submission Route
 // ==========================================
+
+// 1. GET Profile Endpoint
+app.get("/users/profile/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    const database = await connectDB();
+    const user = await database.collection("users").findOne({ email });
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Return the profile object (or empty defaults if none exists yet)
+    res.status(200).json({
+      profile: user.profile || {
+        title: "",
+        bio: "",
+        location: "",
+        phone: "",
+        calendlyLink: "",
+        education: [],
+        subjects: [],
+        experience: [],
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// 2. PUT Update Profile Endpoint
+app.put("/users/profile/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { profile } = req.body;
+
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    const database = await connectDB();
+    const usersCollection = database.collection("users");
+
+    // Check if user exists
+    const user = await usersCollection.findOne({ email });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const oldProfile = user.profile || {};
+
+    // Structure the incoming changes with explicit fallback protection
+    const updatedProfile = {
+      title: profile?.title || "",
+      bio: profile?.bio || "",
+      location: profile?.location || "",
+      phone: profile?.phone || "",
+      calendlyLink: profile?.calendlyLink || "",
+      education: Array.isArray(profile?.education) ? profile.education : [],
+      subjects: Array.isArray(profile?.subjects) ? profile.subjects : [],
+      experience: Array.isArray(profile?.experience) ? profile.experience : [],
+      verified: oldProfile.verified || false,
+      rating: oldProfile.rating || 0,
+      totalReviews: oldProfile.totalReviews || 0,
+    };
+
+    // Database update
+    await usersCollection.updateOne(
+      { email },
+      {
+        $set: {
+          profile: updatedProfile,
+          updated_at: new Date(),
+        },
+      },
+    );
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      profile: updatedProfile,
+    });
+  } catch (err) {
+    console.error("Error updating profile:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.post("/api/enrollments", async (req, res) => {
   try {
     const database = await connectDB();
@@ -329,7 +492,26 @@ app.get("/api/bootcamp-levels", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+// GET: Fetch a single bootcamp level by ID
+app.get("/api/bootcamp-levels/:id", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { id } = req.params;
 
+    const level = await database
+      .collection("bootcamp_levels")
+      .findOne({ id: id });
+
+    if (!level) {
+      return res.status(404).json({ error: "Bootcamp level not found" });
+    }
+
+    res.status(200).json(level);
+  } catch (err) {
+    console.error("Error fetching single level:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 // Start Server for local development
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
