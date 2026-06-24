@@ -315,7 +315,189 @@ app.post("/api/enrollments", async (req, res) => {
     res.status(500).json({ error: "সার্ভারে সমস্যা হয়েছে, আবার চেষ্টা করুন।" });
   }
 });
+// ==========================================
+// NEW POST: Calendly Booking Storage Route
+// ==========================================
+app.post("/api/bookings/manual", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const bookingsCollection = database.collection("bookings");
 
+    const { tutorEmail, studentEmail, studentName, inviteeUri, startTime } =
+      req.body;
+
+    // Basic Validation
+    if (!tutorEmail || !studentEmail) {
+      return res
+        .status(400)
+        .json({ error: "Tutor email and student email are required." });
+    }
+
+    const newBooking = {
+      tutorEmail: tutorEmail.toLowerCase().trim(),
+      studentInfo: {
+        name: studentName || "Anonymous Student",
+        email: studentEmail.toLowerCase().trim(),
+      },
+      calendly: {
+        inviteeUri: inviteeUri || null,
+        scheduledAt: startTime ? new Date(startTime) : new Date(),
+      },
+      status: "scheduled",
+      createdAt: new Date(),
+    };
+
+    const result = await bookingsCollection.insertOne(newBooking);
+
+    res.status(201).json({
+      success: true,
+      message: "Booking saved successfully!",
+      bookingId: result.insertedId,
+    });
+  } catch (err) {
+    console.error("Error saving manual booking:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.post("/api/progress", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const progressCollection = database.collection("progress");
+    const {
+      studentEmail,
+      courseId,
+      completedClasses,
+      totalClasses,
+      performanceScore,
+      notes,
+    } = req.body;
+
+    if (!studentEmail || !courseId) {
+      return res
+        .status(400)
+        .json({ error: "Student email and courseId are required." });
+    }
+
+    const progressData = {
+      studentEmail: studentEmail.toLowerCase().trim(),
+      courseId,
+      completedClasses: parseInt(completedClasses) || 0,
+      totalClasses: parseInt(totalClasses) || 10, // Default 10 classes
+      performanceScore: performanceScore || "Good",
+      notes: notes || "",
+      updatedAt: new Date(),
+    };
+
+    await progressCollection.updateOne(
+      { studentEmail: progressData.studentEmail, courseId },
+      { $set: progressData },
+      { upsert: true },
+    );
+
+    res
+      .status(200)
+      .json({ success: true, message: "Progress updated successfully!" });
+  } catch (err) {
+    console.error("Progress saving error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get("/api/progress/:email", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { email } = req.params;
+    const studentProgress = await database
+      .collection("progress")
+      .find({ studentEmail: email.toLowerCase().trim() })
+      .toArray();
+
+    res.status(200).json(studentProgress);
+  } catch (err) {
+    console.error("Error fetching progress:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+// ==========================================
+// GET: Fetch Bookings for a Specific Student
+// ==========================================
+app.get("/api/bookings/student/:email", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { email } = req.params;
+
+    if (!email) {
+      return res.status(400).json({ error: "Student email is required." });
+    }
+
+    const studentBookings = await database
+      .collection("bookings")
+      .find({ "studentInfo.email": email.toLowerCase().trim() })
+      .sort({ "calendly.scheduledAt": 1 })
+      .toArray();
+
+    res.status(200).json(studentBookings);
+  } catch (err) {
+    console.error("Error fetching student bookings:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+// ১. টিচারের নতুন ক্লাস/মিটিং শিডিউল যোগ করা (POST)
+app.post("/api/teacher/schedule", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const scheduleCollection = database.collection("teacher_schedules");
+    const {
+      teacherEmail,
+      topic,
+      classDate,
+      classTime,
+      meetLink,
+      targetStudentEmail,
+    } = req.body;
+
+    if (!teacherEmail || !topic || !classDate || !classTime) {
+      return res.status(400).json({ error: "Required fields missing." });
+    }
+
+    const newSchedule = {
+      teacherEmail: teacherEmail.toLowerCase().trim(),
+      targetStudentEmail: targetStudentEmail
+        ? targetStudentEmail.toLowerCase().trim()
+        : "All Students",
+      topic,
+      classDate, // Format: YYYY-MM-DD
+      classTime, // Format: HH:MM
+      meetLink: meetLink || "",
+      createdAt: new Date(),
+    };
+
+    const result = await scheduleCollection.insertOne(newSchedule);
+    res.status(201).json({ success: true, scheduleId: result.insertedId });
+  } catch (err) {
+    console.error("Error creating schedule:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ২. কোনো নির্দিষ্ট টিচারের সব শিডিউল দেখা (GET)
+app.get("/api/teacher/schedule/:email", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { email } = req.params;
+    const schedules = await database
+      .collection("teacher_schedules")
+      .find({ teacherEmail: email.toLowerCase().trim() })
+      .sort({ classDate: 1, classTime: 1 })
+      .toArray();
+
+    res.status(200).json(schedules);
+  } catch (err) {
+    console.error("Error fetching schedules:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 // GET: Fetch all enrollments
 app.get("/api/enrollments", async (req, res) => {
   try {
