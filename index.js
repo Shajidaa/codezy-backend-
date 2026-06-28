@@ -443,6 +443,41 @@ app.get("/api/bookings/student/:email", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+// ==========================================
+// GET: Check Student Booking Status
+// ==========================================
+app.get("/api/bookings/check-status", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const bookingsCollection = database.collection("bookings");
+    const { email } = req.query;
+
+    // 1. Validate if email is provided
+    if (!email) {
+      return res.status(400).json({ error: "Email parameter is required." });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // 2. Query for an active/scheduled booking for this specific student
+    // Adjust the criteria if your application considers specific statuses as 'active'
+    const activeBooking = await bookingsCollection.findOne({
+      "studentInfo.email": normalizedEmail,
+      status: "scheduled", // Only counts active, future scheduled sessions
+    });
+
+    // 3. Return the response structure expected by the frontend
+    if (activeBooking) {
+      return res.status(200).json({ hasActiveBooking: true });
+    }
+
+    return res.status(200).json({ hasActiveBooking: false });
+  } catch (err) {
+    console.error("Error checking booking status:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ১. টিচারের নতুন ক্লাস/মিটিং শিডিউল যোগ করা (POST)
 app.post("/api/teacher/schedule", async (req, res) => {
   try {
