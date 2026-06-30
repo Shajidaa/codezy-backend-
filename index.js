@@ -46,7 +46,7 @@ app.post("/api/auth/register", async (req, res) => {
   try {
     const database = await connectDB();
     const users = database.collection("users");
-    const { name, email, password, role, expertise } = req.body;
+    const { name, email, password, role, age, school, expertise } = req.body;
 
     const existing = await users.findOne({ email });
     if (existing) return res.status(400).json({ error: "User already exists" });
@@ -57,6 +57,8 @@ app.post("/api/auth/register", async (req, res) => {
       email,
       password: hashedPassword,
       role,
+      age,
+      school,
       expertise: role === "teacher" ? expertise : null,
       createdAt: new Date(),
     });
@@ -102,6 +104,64 @@ app.get("/users/tutors", async (req, res) => {
     res.status(200).json(users);
   } catch (err) {
     console.error("Error fetching users:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+//get all students
+app.get("/users/student", async (req, res) => {
+  try {
+    const database = await connectDB();
+
+    // 1. Parse pagination metrics
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    // 2. Base filter: Always isolate by student role
+    let query = { role: "student" };
+
+    // 3. Dynamic Search Filter Handling
+    const searchString = req.query.search;
+    if (searchString && searchString.trim() !== "") {
+      const sanitizedSearch = searchString.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&",
+      );
+
+      query.$or = [
+        { name: { $regex: sanitizedSearch, $options: "i" } },
+        { email: { $regex: sanitizedSearch, $options: "i" } },
+      ];
+    }
+
+    // 4. Run database processing concurrently
+    const [users, totalItems] = await Promise.all([
+      database
+        .collection("users")
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+      database.collection("users").countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    // 5. Package standard envelope response
+    res.status(200).json({
+      data: users,
+      pagination: {
+        currentPage: page,
+        limit: limit,
+        totalItems: totalItems,
+        totalPages: totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching users with pagination and search:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
