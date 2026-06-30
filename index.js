@@ -92,18 +92,64 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 //get teachers
+
 app.get("/users/tutors", async (req, res) => {
   try {
     const database = await connectDB();
-    const users = await database
-      .collection("users")
-      .find({ role: "teacher" })
+    const usersCollection = database.collection("users");
 
-      .sort({ createdAt: -1 })
-      .toArray();
-    res.status(200).json(users);
+    // 1. Parse and sanitize pagination query parameters
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 10)); // Safe upper bound limit
+    const skip = (page - 1) * limit;
+
+    // 2. Build the dynamic search query matrix
+
+    let query = { role: "teacher" };
+
+    const searchString = req.query.search;
+    if (searchString && searchString.trim() !== "") {
+      const sanitizedSearch = searchString.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&",
+      );
+
+      query.$or = [
+        { name: { $regex: sanitizedSearch, $options: "i" } },
+        { email: { $regex: sanitizedSearch, $options: "i" } },
+      ];
+    }
+
+    // 3. Execute all DB operations concurrently to eliminate bottlenecks
+    const [tutors, filteredCount, absoluteTotal] = await Promise.all([
+      usersCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+      usersCollection.countDocuments(query),
+      usersCollection.countDocuments({ role: "teacher" }),
+    ]);
+
+    // 4. Calculate page totals
+    const totalPages = Math.ceil(filteredCount / limit);
+
+    // 5. Structure senior-level JSON envelope pattern
+    res.status(200).json({
+      data: tutors,
+      totalTeachers: absoluteTotal, // Grand total metric requested
+      pagination: {
+        currentPage: page,
+        limit: limit,
+        totalItems: filteredCount, // Matching filter count
+        totalPages: totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
   } catch (err) {
-    console.error("Error fetching users:", err);
+    console.error("Error fetching tutors with metrics:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -702,6 +748,87 @@ app.get("/courses", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+// POST - Add new course
+app.post("/courses", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const courseData = req.body;
+
+    // Generate a new ID
+    const lastCourse = await database
+      .collection("courses")
+      .find()
+      .sort({ id: -1 })
+      .limit(1)
+      .toArray();
+
+    const newId = lastCourse.length > 0 ? lastCourse[0].id + 1 : 1;
+
+    const newCourse = {
+      ...courseData,
+      id: newId,
+      createdAt: new Date().toISOString(),
+    };
+
+    const result = await database.collection("courses").insertOne(newCourse);
+
+    res.status(201).json({
+      ...newCourse,
+      _id: result.insertedId,
+    });
+  } catch (err) {
+    console.error("Error adding course:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// DELETE - Remove a course
+app.delete("/courses/:id", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { id } = req.params;
+
+    const result = await database
+      .collection("courses")
+      .deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Course not found" });
+    }
+
+    res.status(200).json({ message: "Course deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting course:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// PUT - Update a course (optional)
+app.put("/courses/:id", async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const result = await database
+      .collection("courses")
+      .updateOne({ _id: new ObjectId(id) }, { $set: updateData });
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Course not found" });
+    }
+
+    const updatedCourse = await database
+      .collection("courses")
+      .findOne({ _id: new ObjectId(id) });
+
+    res.status(200).json(updatedCourse);
+  } catch (err) {
+    console.error("Error updating course:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.get("/course", async (req, res) => {
   try {
     const database = await connectDB();
